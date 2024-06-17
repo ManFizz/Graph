@@ -4,9 +4,9 @@ namespace Lab_4
 {
     internal class Arc
     {
-        public string start;
-        public string end;
-        public int weight;
+        public string Start;
+        public string End;
+        public int Weight;
 
         /*
          * string format: "[Name vertex 1 :string] [Name vertex 2 :string] [weight :int]"
@@ -17,9 +17,9 @@ namespace Lab_4
             var parseResult = parse.Split(' ');
             if (parseResult.Length != 3)
                 throw new Exception("Broken string " + parse);
-            start = parseResult[0];
-            end = parseResult[1];
-            if(!int.TryParse(parseResult[2], out weight))
+            Start = parseResult[0];
+            End = parseResult[1];
+            if(!int.TryParse(parseResult[2], out Weight))
                 throw new Exception("Broken weight " + parse);
         }
     }

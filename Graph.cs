@@ -7,241 +7,240 @@ namespace Lab_4
 {
     internal class Graph
     {
-        private readonly List<Arc> _arr = new List<Arc>();
+        //Parametrs
+        private int?[][] _arr;
+        private int _count;
+        //End parametrs
 
-        public Graph() {}
+        //Constructors
+        public Graph(string str)
+        {
+            FillFromFile(str);
+        }
+
+        public Graph(int l)
+        {
+            _count = l;
+            _arr = InitArray(l);
+        }
 
         public Graph(Graph oldGraph)
         {
             _arr = oldGraph._arr;
+            _count = oldGraph._count;
         }
+        //End constructors
 
-        public void Add(string strArc)
-        {
-            _arr.Add(new Arc(strArc));
-        }
 
+        //Procedure reading a matrix from a file
+        //Warn - auto clear matrix
+        //https://github.com/MadVlad1715/GraphAlgorithms/blob/main/GraphAlgorithms/Graph.cs
         public void FillFromFile(string path)
         {
             var fileReader = new StreamReader(path);
-            string stringBuff;
-            while ((stringBuff = fileReader.ReadLine()) != null) 
-                Add(stringBuff); 
-        }
-
-        public List<Arc> GetArcList(string vertex)
-        {
-            return _arr.Where(i => i.start == vertex).ToList();
-        }
-
-        public List<string> GetVertexList()
-        {
-            var arr = new List<string>();
-            foreach (var i in _arr)
+            _count = int.Parse(fileReader.ReadLine() ?? string.Empty);
+            _arr = InitArray(_count);
+            for (var i = 0; i < _count; i++)
             {
-                if(!arr.Contains(i.start))
-                    arr.Add(i.start);
-                if (!arr.Contains(i.end))
-                    arr.Add(i.end);
-            }
-            return arr;
-        }
+                var stringBuff = fileReader.ReadLine();
+                if (stringBuff == null)
+                    throw new Exception("file broken");
+                stringBuff = stringBuff.Trim();
+                var parseResult = stringBuff.Split(' ');
+                if (parseResult.Length != _count)
+                    throw new Exception("Broken string " + stringBuff);
 
-        public int[] BuildMatrix(ref int sz)
-        {
-            var arr = GetVertexList();
-            var matrix = new int[arr.Count * arr.Count];
-            for (var i = 0; i < arr.Count * arr.Count; i++)
-                matrix[i] = int.MaxValue;
-
-            for (var i = 0; i < arr.Count; i++) //Цикл по всем вершинам
-            {
-                var mas = GetArcList(arr[i]); //Берем список всех дуг
-                foreach (var c in mas)//Берем 1 дугу
-                {
-                    var m = arr.FindIndex(x => x.Equals(c.end)); //Ищем на каком месте в arr находится c.start
-
-                    //Console.WriteLine("{0} to {1} -> {2}", c.end, c.start, c.weight);
-                    matrix[i * arr.Count + m] = c.weight;
-                }
+                //int c = _arr[0].Count;
+                for (var j = 0; j < _count; j++)
+                    _arr[i][j] = int.Parse(parseResult[j]);
             }
 
-            sz = arr.Count;
-            return matrix;
+            //PrintMatrix(_arr, _count);
+            fileReader.Close();
         }
 
-        class Point
+        // Основная функция, которая находит кратчайший расстояние от src до всех остальных вершин
+        // с использованием алгоритма Беллмана-Форда. Функция также обнаруживает цикл отрицательного веса
+        public int ShortestPath(int src, int end)
         {
-            public string name;
-            public int metka;
-            public Point fromMetka;
-            public bool Fixed;
+            // Инициализируйте расстояние между всеми вершинами как бесконечное.
+            var arr = InitArray(_count);
+            _arr.CopyTo(arr, 0);
+            var dis = new int?[_count];
+            for (var i = 0; i < _count; i++)
+                dis[i] = int.MaxValue;
 
-            public Point(string name)
-            {
-                this.name = name;
-                this.metka = int.MaxValue;
-                fromMetka = null;
-                Fixed = false;
-            }
+            for (var i = 0; i < _count; i++)
+                for (var u = 0; u < _count; u++)
+                    if (arr[i][u] == 0)
+                        arr[i][u] = null;
+
+            dis[src] = 0;
+            
+            for (var i = 0; i < _count - 1; i++)
+                for (var u = 0; u < _count; u++)
+                    for (var v = 0; v < _count; v++)
+                        if (arr[u][v] != null && dis[u] != int.MaxValue && dis[u] + arr[u][v] < dis[v])
+                            dis[v] = dis[u] + arr[u][v];
+
+            for (var u = 0; u < _count; u++)
+                for (var v = 0; v < _count; v++)
+                    if (arr[u][v] != null && dis[u] + arr[u][v] < dis[v])
+                        throw new Exception("Graph contains negative weight cycle");
+
+            for (var i = 0; i < _count; i++)
+                if (dis[i] == int.MaxValue)
+                    dis[i] = 0;
+
+            return dis[end] ?? int.MinValue;
         }
 
-        public bool TestNegativeArc()
+        //Floid algorithm
+        public int FloidAlgorithm(int a, int b)
         {
-            return _arr.Any(c => c.weight < 0);
-        }
+            var matrix = _arr.ToList();
+            var sz = _count;
+            for(var i = 0; i < sz; i++)
+                for(var j = 0; j < sz; j++)
+                    if (i != j && matrix[i][j] == null)
+                        matrix[i][j] = int.MaxValue;
 
-        public int ShortestPath(string a, string b)
-        {
-            if (TestNegativeArc())
-                return -1;
-
-            var path = new Graph(this);
-            if (path._arr.Count == 0)
-                return -1;
-
-            var startPoint = new Point(a)
-            {
-                Fixed = true,
-                metka = 0
-            };
-
-            var link = startPoint;
-            while (link.name != b)
-            {
-                var mas = new List<Point>();
-                foreach (var arc in _arr)
-                {
-                    if (arc.start != link.name)
-                        continue;
-
-                    //Ищу точку - конец дуги
-                    var point = mas.Where(p => p.name == arc.end).GetEnumerator().Current;
-                    if (point == null)
-                    {
-                        point = new Point(arc.end);
-                        mas.Add(point);
-                    }
-                    else if (point.Fixed) continue; //если она уже закреплена, то скип
-
-                    //Обновление метки
-                    if ((link.metka + arc.weight < point.metka))
-                    {
-                        point.metka = arc.weight + link.metka;
-                        point.fromMetka = link;
-                        Console.WriteLine("Update {0} from {1}, set {2}", point.name, point.fromMetka.name, point.metka);
-                    }
-                }
-
-                // Find min metka for nex iteration
-                var k = new Point("s")
-                {
-                    metka = int.MaxValue
-                };
-                foreach (var p in mas.Where(p => p.metka < k.metka))
-                    k = p;
-                link = k;
-                link.Fixed = true;
-                Console.WriteLine("Ste linked point {0}", link.name);
-            }
-
-            var iOut = link.metka;
-            var sOut = "";
-            while (link != startPoint)
-            {
-                sOut += link.name + " >- ";
-                link = link.fromMetka;
-            }
-
-            sOut += a;
-            sOut = Reverse(sOut);
-            Console.WriteLine(sOut);
-            return iOut;
-        }
-        public static string Reverse(string s)
-        {
-            char[] charArray = s.ToCharArray();
-            Array.Reverse(charArray);
-            return new string(charArray);
-        }
-
-        public int ShortestPathFloid(string A, string B)
-        {
-            var sz = 0;
-            var matrix = BuildMatrix(ref sz);
-            FloidAlgorithm(ref matrix, sz);
-            var arr = GetVertexList();
-            return matrix[arr.FindIndex(x => x.Equals(A)) * arr.Count + arr.FindIndex(x => x.Equals(B))];
-        }
-
-        private static void FloidAlgorithm(ref int[] matrix, int sz)
-        {
             for (var idx = 0; idx < sz; ++idx)
             {
                 for (var iTop = 0; iTop < sz; ++iTop)
                 {
-                    if (matrix[iTop * sz + idx] == int.MaxValue)
+                    if (matrix[iTop][idx] == int.MaxValue)
                         continue;
-                        
+
                     for (var iLeft = 0; iLeft < sz; ++iLeft)
                     {
-                        if (matrix[idx * sz + iLeft] == int.MaxValue)
+                        if (matrix[idx][iLeft] == int.MaxValue)
                             continue;
 
-                        var distance = matrix[iTop * sz + idx] + matrix[idx * sz + iLeft];
-                        if (matrix[iTop * sz + iLeft] > distance)
-                        {
-                            matrix[iTop * sz + iLeft] = distance;
-                        }
+                        var distance = matrix[iTop][idx] + matrix[idx][iLeft];
+                        if (matrix[iTop][iLeft] > distance) 
+                            matrix[iTop][iLeft] = distance; 
                     }
                 }
             }
+            
+            return matrix[a][b] == int.MaxValue ? -1 : matrix[a][b] ?? 0;
         }
+        //End floid algorithm
 
-        //Go to deep
+        private class Point
+        {
+            public int name;
+            public int from;
+            public Point(int name, int from)
+            {
+                this.name = name;
+                this.from = from;
+            }
+        }
+        ////Traversing the graph in depth
+        public void PrintTest(int s)
+        {
+            // Initially mark all vertices as not visited
+            var visited = new bool[_count];
+
+            // Create a stack for DFS
+            var stack = new Stack<int>();
+
+            // Push the current source node
+            stack.Push(s);
+
+            while (stack.Count > 0)
+            {
+                // Pop a vertex from stack and print it
+                s = stack.Peek();
+                stack.Pop();
+
+                // Stack may contain same vertex twice. So
+                // we need to print the popped item only
+                // if it is not visited.
+                if (visited[s] == false)
+                {
+                    Console.Write(s + " ");
+                    visited[s] = true;
+                }
+
+                // Get all adjacent vertices of the popped vertex s
+                // If a adjacent has not been visited, then push it
+                // to the stack.
+                for(var i = 0; i < _count; ++i)
+                {
+                    if (_arr[s][i] != 0 && _arr[s][i] != null && !visited[i])
+                        stack.Push(i);
+                }
+
+            }
+            Console.WriteLine();
+        }
         public void Print()
         {
-            var vertexList = GetVertexList(); //Все вершины
-            //vertexList.Reverse(); // Разверну для теста BUG
-            var vizited = new List<string>(); //Список посещенных
-            var buffArr = new List<string>(); //Буффер для deep обхода
-
-            while (vizited.Count != vertexList.Count) //Пока не посетим все вершины
+            var vizited = new List<int>(); //Список посещенных
+            var buffArr = new List<Point>(); //Буффер для deep обхода
+            string sOut1 = "   ";
+            string sOut2 = "";
+            while (vizited.Count != _count) //Пока не посетим все вершины
             {
-                if(buffArr.Count == 0) //Если буфер пуст
-                    buffArr.Add(vertexList.Find(str => !vizited.Contains(str)));
-                //Берем первый не  посещенный
+                if (buffArr.Count == 0) //Если буфер пуст
+                {
+                    //Берем первый не  посещенный
+                    for (var j = 0; j < _count; j++)
+                    {
+                        if (vizited.Contains(j))
+                            continue;
+
+                        buffArr.Add(new Point(j, -1));
+                        break;
+                    }
+                }
 
                 while (buffArr.Count != 0)
                 {
                     var work = buffArr.Last(); //Берем последний
-                    var arcList = GetArcList(work); //Берем все его дуги
+                    var arcList = new List<int>(); //GetArcList(work); //Берем все его дуги
                     buffArr.RemoveAt(buffArr.Count - 1); //Убираем из буфера
-                    vizited.Add(work); //Отмечаем посещенным
-                    Console.Write(work + " ");
-                    
-                    foreach(var a in arcList) //Добавляем все не посещенные
-                        if(!vizited.Contains(a.end))
-                            buffArr.Add(a.end);
+                    vizited.Add(work.name); //Отмечаем посещенным
+                    if (work.from != -1)
+                        sOut1 += (_arr[work.from][work.name] + " ").PadLeft(4);
+                    sOut2 += (work.name + " ").PadLeft(4);
+
+                    for (var j = 0; j < _count; j++)
+                        if (_arr[work.name][j] != null && !vizited.Contains(j))
+                        {
+                            for (var k = 0; k < buffArr.Count; k++)
+                            {
+                                if (buffArr[k].name != j)
+                                    continue;
+
+                                buffArr.RemoveAt(k);
+                                break;
+                            }
+
+                            buffArr.Add(new Point(j, work.name));
+                        }
                 }
             }
-            Console.WriteLine();
+            Console.WriteLine("{0}\n{1}", sOut1, sOut2);
         }
 
-        private void PrintArray(IReadOnlyList<int> matrix, int sz)
+        //Print matrix
+        public void PrintMatrix()
         {
-            var arr = GetVertexList();
-            Console.Write("  ");
-            for (var i = 0; i < sz; i++)
-                Console.Write(arr[i] + " ");
-            Console.WriteLine();
+            PrintMatrix(_arr, _count);
+        }
 
+        //Private zone
+        private static void PrintMatrix(int?[][] matrix, int sz)
+        {
             for (var i = 0; i < sz; i++)
             {
-                Console.Write(arr[i] + " ");
                 for (var j = 0; j < sz; j++)
                 {
-                    var iOut = matrix[i * sz + j];
+                    var iOut = matrix[i][j];
                     iOut = (iOut == int.MaxValue) ? 0 : iOut;
                     Console.Write(iOut + " ");
                 }
@@ -250,5 +249,29 @@ namespace Lab_4
             }
             Console.WriteLine();
         }
+
+        private bool TestNegativeArc()
+        {
+            return _arr.Any(c => c.Any(m => m < 0));
+        }
+        //End private zone
+
+        //Utils
+        private static int?[][] InitArray(int size)
+        {
+            var arr = new int?[size][];
+            for (var i = 0; i < size; i++)
+                arr[i] = new int?[size];
+
+            return arr;
+        }
+
+        public static string Reverse(string s)
+        {
+            var charArray = s.ToCharArray();
+            Array.Reverse(charArray);
+            return new string(charArray);
+        }
+        //End Utils
     }
 }
